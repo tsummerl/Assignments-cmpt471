@@ -10,7 +10,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define	PROTOPORT	5193		/* default protocol port number */
+#define	PROTOPORT	5121		/* default protocol port number */
 
 extern	int		errno;
 char	localhost[] =	"localhost";	/* default host name		*/
@@ -119,18 +119,33 @@ char	*argv[];
 	fread(fileContents, sizeof(char), inputFileSize, inputFile);
 	fclose(inputFile);
 	fileContents[inputFileSize] = 0;
-	printf("%s\n",fileContents);
+	//printf("%s\n",fileContents);
 
 	//starts sending packets///
-	int packNum = pktSize(inputFileSize,buffSize);
-	printf("TOTAL PACKETS: %i", packNum);
-	for(int i = 0; i < packNum; i++)
+	// int packNum = pktSize(inputFileSize,buffSize);
+	// printf("TOTAL PACKETS: %i", packNum);
+	// for(int i = 0; i < packNum; i++)
+	// {
+	// 	printf("\nPACKET: %i\n", i + 1);
+	// 	memcpy(sendBuf,&fileContents[i*buffSize],buffSize);
+	// 	send(sd,sendBuf,strlen(sendBuf),0);
+	// 	//printf("%s\n", sendBuf);
+	// }
+	int sentBytes = 0;
+	int sizeOfMessage = buffSize;
+	while(sentBytes < inputFileSize)
 	{
-		printf("\nPACKET: %i\n", i + 1);
-		memcpy(sendBuf,&fileContents[i*buffSize],buffSize);
-		send(sd,sendBuf,strlen(sendBuf),0);
-		//printf("%s\n", sendBuf);
+		int wrote;
+		if(inputFileSize - sentBytes < buffSize)
+		{
+			sizeOfMessage = inputFileSize - sentBytes;
+		}
+		wrote = send(sd,fileContents + sentBytes,(sizeOfMessage),0);
+		sentBytes = wrote + sentBytes;
+		printf("NUMBER OF BYTES SENT %i\n",sentBytes);
 	}
+	//int sentbits = send(sd,fileContents,buffSize,0);
+	printf("SIZE OF FILE %i \n", inputFileSize);
 
 
 

@@ -7,7 +7,7 @@
 #include <netdb.h>
 #include <stdio.h>
 
-#define	PROTOPORT	5193		/* default protocol port number */
+#define	PROTOPORT	5121		/* default protocol port number */
 #define	QLEN		6		/* size of request queue	*/
 
 int	visits	    =   0;		/* counts client connections	*/
@@ -103,8 +103,17 @@ char	*argv[];
 		sprintf(buf,"This server has been contacted %d time%s\n",
 			visits,visits==1?".":"s.");
 		printf("Server says: %s", buf);
-		send(sd2,buf,strlen(buf),0);
-		
-		close(sd2);
+		//send(sd2,buf,strlen(buf),0);
+		int bytesReceived = 0;
+		while(1)
+		{
+			int bytesInPac = recv(sd2,buf,1000,0);
+			bytesReceived +=bytesInPac;
+			if(bytesInPac == 0)
+			{
+				close(sd2);
+			}
+			printf("BYTES RECEIVED: %i\n",bytesReceived);
+		}
 	}
 }

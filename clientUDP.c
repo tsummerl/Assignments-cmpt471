@@ -58,13 +58,13 @@ main(int argc, char *argv[])
 		printf("%s\n",fileContents);
 
 		//starts sending packets///
-		int packNum = pktSize(inputFileSize,buffSize);
-		for(int i = 0; i < packNum; i++)
-		{
-			printf("\nPACKET: %i\n", i+1);
-			memcpy(sendBuf,&fileContents[i*buffSize],buffSize);
-			printf("%s", sendBuf);
-		}
+		// int packNum = pktSize(inputFileSize,buffSize);
+		// for(int i = 0; i < packNum; i++)
+		// {
+		// 	printf("\nPACKET: %i\n", i+1);
+		// 	memcpy(sendBuf,&fileContents[i*buffSize],buffSize);
+		// 	printf("%s", sendBuf);
+		// }
 
 
 	}
