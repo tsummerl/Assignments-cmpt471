@@ -104,17 +104,35 @@ char	*argv[];
 		exit(1);
 	}
 
-	/* $$$$$$ READ FROM FILE AND SEND TCP SEGMENTS TO SERVER $$$$$ */
-	FILE *fp;
-	fp = fopen("server.c","r");
-	char *readBuf[];
-	if(fp == NULL)
+	int buffSize = 1000;
+	char *sendBuf[buffSize];
+
+	//reads a file and puts it into a string//
+	char *fileContents;
+	long inputFileSize;
+	FILE *inputFile = fopen("server.c", "rb");
+	fseek(inputFile, 0, SEEK_END);
+	inputFileSize = ftell(inputFile);
+	rewind(inputFile);
+	
+	fileContents = malloc((inputFileSize + 1) * (sizeof(char)));
+	fread(fileContents, sizeof(char), inputFileSize, inputFile);
+	fclose(inputFile);
+	fileContents[inputFileSize] = 0;
+	printf("%s\n",fileContents);
+
+	//starts sending packets///
+	int packNum = pktSize(inputFileSize,buffSize);
+	printf("TOTAL PACKETS: %i", packNum);
+	for(int i = 0; i < packNum; i++)
 	{
-		printf("File not found\n");
-		exit(1);
+		printf("\nPACKET: %i\n", i + 1);
+		memcpy(sendBuf,&fileContents[i*buffSize],buffSize);
+		send(sd,sendBuf,strlen(sendBuf),0);
+		//printf("%s\n", sendBuf);
 	}
-	fread(readBuf,)
-	fclose( fp );
+
+
 
 
 
@@ -135,3 +153,26 @@ char	*argv[];
 
 	exit(0);
 }
+int pktSize(int fileSize, int buffSize)
+{
+	printf("%i\n", fileSize);
+	printf("%i\n", buffSize);
+
+	if(fileSize % buffSize == 0)
+	{
+		return fileSize/buffSize;
+	}
+	else
+	{
+		return (fileSize/buffSize) + 1;
+	}
+}
+
+
+
+
+
+
+
+
+

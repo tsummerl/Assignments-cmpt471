@@ -104,6 +104,7 @@ char	*argv[];
 			visits,visits==1?".":"s.");
 		printf("Server says: %s", buf);
 		send(sd2,buf,strlen(buf),0);
+		
 		close(sd2);
 	}
 }
