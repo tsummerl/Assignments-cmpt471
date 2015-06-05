@@ -158,5 +158,16 @@ char	*argv[];
 		    }
 		}
 
+		// while(1)
+		// {
+		// 	int bytesInPac = recv(sd2,buf,1000,0);
+		// 	bytesReceived +=bytesInPac;
+		// 	printf("%s",buf);
+		// 	if(bytesInPac == 0)
+		// 	{
+		// 		close(sd2);
+		// 	}
+		// 	printf("BYTES RECEIVED: %i\n",bytesReceived);
+		// }
 	}
-}
+}	
