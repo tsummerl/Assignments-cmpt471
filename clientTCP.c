@@ -10,7 +10,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define	PROTOPORT	33523		/* default protocol port number */
+#define	PROTOPORT	33578		/* default protocol port number */
 #define DEFAULTBUFFSIZE  1440  /* default buffer size */
 static const char DEFAULTINPUTFILE[] = "echoClient.in";
 static const char DEFAULTOUTPUTFILE[] = "echoClient.out";
@@ -55,10 +55,10 @@ char	*argv[];
 	memset((char *)&sad,0,sizeof(sad)); /* clear sockaddr structure	*/
 	sad.sin_family = AF_INET;	  /* set family to Internet	*/
 
-	// if (argc < 3) // not enough arguments given //
-	// {
-	// 	printf("Not enough argumenets given. \n Arguments are as follow: \nserverIP, clientIP, portNumber, bufferSize, inputFile, outputFile");
-	// }
+	if (argc < 3) // not enough arguments given //
+	{
+		printf("Not enough argumenets given. \n Arguments are as follow: \nserverIP, clientIP, portNumber, bufferSize, inputFile, outputFile");
+	}
 
 	/* Check command-line argument for protocol port and extract	*/
 	/* port number if one is specified.  Otherwise, use the default	*/
@@ -78,8 +78,9 @@ char	*argv[];
 
 	/* Check host argument and assign host name. */
 
-	if (argc > 1) {
-		host = argv[1];		/* if host argument specified	*/
+	if (argc > 2) {
+		serverIP = argv[1];		/* NOT IN USE YET; MUST IMPLEMENT	*/
+		clientIP = argv[2];
 	} else {
 		host = localhost;
 	}
@@ -94,7 +95,7 @@ char	*argv[];
 
 	/* Convert host name to equivalent IP address and copy to sad. */
 
-	ptrh = gethostbyname(host);
+	ptrh = gethostbyname(host); // this should be similar for setting the server IP and client IP
 	if ( ((char *)ptrh) == NULL ) {
 		fprintf(stderr,"invalid host: %s\n", host);
 		exit(1);
@@ -122,9 +123,9 @@ char	*argv[];
 		fprintf(stderr,"connect failed\n");
 		exit(1);
 	}
-	setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
-	setsockopt(sd, SOL_SOCKET, SO_SNDBUF, &buffSize, sizeof(buffSize));
-	setsockopt(sd, SOL_SOCKET, SO_RCVBUF, &buffSize, sizeof(buffSize));
+	setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);  // BE ABLE TO REUSE ADDRESS
+	setsockopt(sd, SOL_SOCKET, SO_SNDBUF, &buffSize, sizeof(buffSize)); // SET THE SEND SIZE OF THE BUFFER
+	setsockopt(sd, SOL_SOCKET, SO_RCVBUF, &buffSize, sizeof(buffSize)); // SET THE RECEIVE SIZE OF THE BUFFER
 
 
 	//reads a file and puts it into a string//
@@ -134,15 +135,15 @@ char	*argv[];
 	FILE *outputFile = fopen("output.txt","w");
 	if(outputFile == NULL)
 	{
-		outputFile = fopen("output.txt","a");
+		outputFile = fopen("output.txt","a"); // IF THE FILE DOESN'T EXIST
 	}
 	else
 	{
-		fprintf(outputFile, "");
+		fprintf(outputFile, ""); 
 	}
 	outputFile = fopen("output.txt","a");
 	fseek(inputFile, 0, SEEK_END);
-	inputFileSize = ftell(inputFile);
+	inputFileSize = ftell(inputFile); // CHECK THE SIZE OF THE FILE
 	rewind(inputFile);
 	
 	fileContents = malloc((inputFileSize + 1) * (sizeof(char)));
@@ -173,7 +174,7 @@ char	*argv[];
 		int receive = 0;
 	    if (select(sd+1, &readSock, &writeSock, NULL, &tv) > 0) //check if we can read or write
 	    {
-	    	if(FD_ISSET(sd, &readSock))// modifies the list of available sockets to read
+	    	if(FD_ISSET(sd, &readSock))// CHECKS TO SEE IF WE CAN READ
 	    	{
 	    		receive = recv(sd, readBuff, sizeof(readBuff), 0);
 	        	receivedBytes = receive + receivedBytes;
@@ -182,7 +183,7 @@ char	*argv[];
 	    		fprintf(outputFile, "%s", readBuff);
 
 	    	}
-	    	if(FD_ISSET(sd, &writeSock))
+	    	if(FD_ISSET(sd, &writeSock))// CHECKS TO SEE IF WE CAN WRITE
 	    	{
 			    if(inputFileSize - sentBytes < buffSize)
 				{
@@ -208,13 +209,10 @@ char	*argv[];
 	char c;
 	if (outputFile) 
 	{
-	    while ((c = getc(outputFile)) != EOF)
+	    while ((c = getc(outputFile)) != EOF) // WRITES FILE FOR DEBUGGING
 	        putchar(c);
 	    fclose(outputFile);
 	}
-
-	
-	//printf("SIZE OF FILE %i \n", inputFileSize);
 
 
 	/* Close the socket. */

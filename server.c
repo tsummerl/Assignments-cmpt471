@@ -8,7 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define	PROTOPORT	33523		/* default protocol port number */
+#define	PROTOPORT	33578	/* default protocol port number */
 #define	QLEN		6		/* size of request queue	*/
 
 int	visits	    =   0;		/* counts client connections	*/
@@ -143,7 +143,6 @@ char	*argv[];
 		    		if(receive == 0)
 		    		{
 		    			close(sd2);
-		    			exit(0);
 		    		}
 		    	}
 		    }
@@ -153,10 +152,20 @@ char	*argv[];
 		    	if(receive == 0)
 		    	{
 		    		close(sd2);
-		    		exit(0);
 		    	}
 		    }
 		}
-
+		exit(0);
+		// while(1)
+		// {
+		// 	int bytesInPac = recv(sd2,buf,1000,0);
+		// 	bytesReceived +=bytesInPac;
+		// 	printf("%s",buf);
+		// 	if(bytesInPac == 0)
+		// 	{
+		// 		close(sd2);
+		// 	}
+		// 	printf("BYTES RECEIVED: %i\n",bytesReceived);
+		// }
 	}
 }
