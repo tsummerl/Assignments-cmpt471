@@ -9,8 +9,12 @@
 #include <netdb.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
+#include <errno.h>
+#include <unistd.h>
 
-#define	PROTOPORT	33578		/* default protocol port number */
+#define	PROTOPORT	33556		/* default protocol port number */
+#define PORTSERVER 33516
 #define DEFAULTBUFFSIZE  1440  /* default buffer size */
 static const char DEFAULTINPUTFILE[] = "echoClient.in";
 static const char DEFAULTOUTPUTFILE[] = "echoClient.out";
@@ -43,6 +47,11 @@ char	*argv[];
 	struct	hostent	 *ptrh;	 /* pointer to a host table entry	*/
 	struct	protoent *ptrp;	 /* pointer to a protocol table entry	*/
 	struct	sockaddr_in sad; /* structure to hold an IP address	*/
+	struct 	sockaddr_in servaddr;
+	memset((char*)&servaddr, 0, sizeof(servaddr));
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_port = htons(PORTSERVER);
+
 	int	sd;		 /* socket descriptor			*/
 	int	port;		 /* protocol port number		*/
 	char	*host;		 /* pointer to host name		*/
@@ -52,7 +61,7 @@ char	*argv[];
 	int	n;		 /* number of characters read		*/
 	char	buf[buffSize];	 /* buffer for data from the server	*/
 
-	memset((char *)&sad,0,sizeof(sad)); /* clear sockaddr structure	*/
+	memset((char *)&sad,0,sizeof(sad)); /* clear sockaddr structure MAYBE PROBLEM LIES HERE?	*/
 	sad.sin_family = AF_INET;	  /* set family to Internet	*/
 
 	if (argc < 3) // not enough arguments given //
@@ -100,7 +109,7 @@ char	*argv[];
 		fprintf(stderr,"invalid host: %s\n", host);
 		exit(1);
 	}
-	memcpy(&sad.sin_addr, ptrh->h_addr, ptrh->h_length);
+	memcpy(&servaddr.sin_addr, ptrh->h_addr, ptrh->h_length);
 
 	/* Map TCP transport protocol name to protocol number. */
 
@@ -111,7 +120,7 @@ char	*argv[];
 
 	/* Create a socket. */
 
-	sd = socket(PF_INET, SOCK_DGRAM, ptrp->p_proto);
+	sd = socket(AF_INET, SOCK_DGRAM, ptrp->p_proto);
 	if (sd < 0) {
 		fprintf(stderr, "socket creation failed\n");
 		exit(1);
@@ -119,15 +128,23 @@ char	*argv[];
 	int optval = 1;
 	/* Connect the socket to the specified server. */
 
-	if (connect(sd, (struct sockaddr *)&sad, sizeof(sad)) < 0) {
-		fprintf(stderr,"connect failed\n");
-		exit(1);
-	}
+	// if (connect(sd, (struct sockaddr *)&sad, sizeof(sad)) < 0) {
+	// 	fprintf(stderr,"connect failed\n");
+	// 	exit(1);
+	// }
+
 	setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);  // BE ABLE TO REUSE ADDRESS
 	setsockopt(sd, SOL_SOCKET, SO_SNDBUF, &buffSize, sizeof(buffSize)); // SET THE SEND SIZE OF THE BUFFER
 	setsockopt(sd, SOL_SOCKET, SO_RCVBUF, &buffSize, sizeof(buffSize)); // SET THE RECEIVE SIZE OF THE BUFFER
 
+	sad.sin_addr.s_addr = htonl(INADDR_ANY);
+    sad.sin_port = htons(PROTOPORT);
 
+     if (bind(sd, (struct sockaddr *)&sad, sizeof(sad)) < 0) 
+     {
+            perror("bind failed");
+            return 0;
+    }
 	//reads a file and puts it into a string//
 	char *fileContents;
 	int inputFileSize;
@@ -156,15 +173,23 @@ char	*argv[];
 	int sizeOfMessage = buffSize;
 	char *readBuff = malloc((inputFileSize + 1) * (sizeof(char)));
 	printf("THE SIZE OF THE FILE: %i\n", inputFileSize);
-	while (1)
+	bool terminateCommunication = false;
+	while (terminateCommunication == false)
 	{
+		int sent = 0;
+		int receive = 0;
 		if(inputFileSize - sentBytes < buffSize)
 		{
 			sizeOfMessage = inputFileSize - sentBytes;
 		}
 		if(sentBytes < inputFileSize)
 		{
-			sent = send(sd,fileContents + sentBytes,(sizeOfMessage),0);
+			sent = sendto(sd,fileContents + sentBytes,sizeOfMessage,0, (struct sockaddr *)&servaddr, sizeof(servaddr));
+			if(sent == -1)
+			{
+				printf("ERROR IN SENDING! %s\n", strerror(errno));
+				exit(1);
+			}
 			sentBytes = sent + sentBytes;
         	printf("BYTES SENT: %i\n", sentBytes);
     		printf("BYTES RECEIVED: %i\n", receivedBytes);
@@ -176,15 +201,18 @@ char	*argv[];
 	    struct timeval tv;
 	    tv.tv_sec = 0;
 	    tv.tv_usec = 10000;
-
-	    int sent = 0;
-		int receive = 0;
+		
 	    if (select(sd+1, &readSock, NULL, NULL, &tv) > 0) //check if we can read
 	    {
 	    	if(FD_ISSET(sd, &readSock))// CHECKS TO SEE IF WE CAN READ
 	    	{
-	    		receive = recv(sd, readBuff, sizeof(readBuff), 0);
+	    		receive = recvfrom(sd, readBuff, sizeof(readBuff), 0,(struct sockaddr *)&servaddr, sizeof(sad));
 	        	receivedBytes = receive + receivedBytes;
+	        	if(receive == -1)
+	        	{
+					printf("ERROR IN RECEIVING! %s\n", strerror(errno));
+					exit(1);
+	        	}
 	        	printf("BYTES SENT: %i\n", sentBytes);
 	    		printf("BYTES RECEIVED: %i\n", receivedBytes );
 	    		fprintf(outputFile, "%s", readBuff);
@@ -195,11 +223,9 @@ char	*argv[];
 	    {
 	    	if(receivedBytes >= inputFileSize) // we sent all the messages and we havent received any from the server
 	    	{
-	    		close(sd);
-	    		break;
+	    		terminateCommunication = true;
 	    	}
 	    }
-
 	}
 	fclose(outputFile);
 	outputFile = fopen("output.txt","r");
@@ -210,22 +236,6 @@ char	*argv[];
 	        putchar(c);
 	    fclose(outputFile);
 	}
-
-
-	/* Close the socket. */
-
-	close(sd);
-
-	/* Terminate the client program gracefully. */
-
 	exit(0);
+	
 }
-
-
-
-
-
-
-
-
-
