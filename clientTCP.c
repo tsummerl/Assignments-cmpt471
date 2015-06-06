@@ -10,7 +10,11 @@
 #include <string.h>
 #include <stdio.h>
 
-#define	PROTOPORT	5121		/* default protocol port number */
+#define	PROTOPORT	33578		/* default protocol port number */
+#define DEFAULTBUFFSIZE  1440  /* default buffer size */
+static const char DEFAULTINPUTFILE[] = "echoClient.in";
+static const char DEFAULTOUTPUTFILE[] = "echoClient.out";
+
 
 extern	int		errno;
 char	localhost[] =	"localhost";	/* default host name		*/
@@ -19,14 +23,13 @@ char	localhost[] =	"localhost";	/* default host name		*/
  *
  * Purpose:   allocate a socket, connect to a server, and print all output
  *
- * Syntax:    client [ host [port] ]
+ * Syntax:    client serverIP, clientIP, portNumber, BufferSize, inputFile, outputFile,
  *
  *		 host  - name of a computer on which server is executing
  *		 port  - protocol port number server is using
  *
- * Note:      Both arguments are optional.  If no host name is specified,
- *	      the client uses "localhost"; if no protocol port is
- *	      specified, the client uses the default given by PROTOPORT.
+ * Note:   required parameters: serverIP, clientIP
+ *			if only one file is given then it is consider the inputfile
  *
  *------------------------------------------------------------------------
  */
@@ -43,18 +46,26 @@ char	*argv[];
 	int	sd;		 /* socket descriptor			*/
 	int	port;		 /* protocol port number		*/
 	char	*host;		 /* pointer to host name		*/
+	char *clientIP;
+	char *serverIP;
+	int buffSize;
 	int	n;		 /* number of characters read		*/
-	char	buf[1000];	 /* buffer for data from the server	*/
+	char	buf[buffSize];	 /* buffer for data from the server	*/
 
 	memset((char *)&sad,0,sizeof(sad)); /* clear sockaddr structure	*/
 	sad.sin_family = AF_INET;	  /* set family to Internet	*/
+
+	if (argc < 3) // not enough arguments given //
+	{
+		printf("Not enough argumenets given. \n Arguments are as follow: \nserverIP, clientIP, portNumber, bufferSize, inputFile, outputFile");
+	}
 
 	/* Check command-line argument for protocol port and extract	*/
 	/* port number if one is specified.  Otherwise, use the default	*/
 	/* port value given by constant PROTOPORT			*/
 
-	if (argc > 2) {			/* if protocol port specified	*/
-		port = atoi(argv[2]);	/* convert to binary		*/
+	if (argc > 3) {			/* if protocol port specified	*/
+		port = atoi(argv[3]);	/* convert to binary		*/
 	} else {
 		port = PROTOPORT;	/* use default port number	*/
 	}
@@ -67,15 +78,24 @@ char	*argv[];
 
 	/* Check host argument and assign host name. */
 
-	if (argc > 1) {
-		host = argv[1];		/* if host argument specified	*/
+	if (argc > 2) {
+		serverIP = argv[1];		/* NOT IN USE YET; MUST IMPLEMENT	*/
+		clientIP = argv[2];
 	} else {
 		host = localhost;
+	}
+	if (argc > 4)
+	{
+		buffSize = argv[4];
+	}
+	else
+	{
+		buffSize = DEFAULTBUFFSIZE;
 	}
 
 	/* Convert host name to equivalent IP address and copy to sad. */
 
-	ptrh = gethostbyname(host);
+	ptrh = gethostbyname(host); // this should be similar for setting the server IP and client IP
 	if ( ((char *)ptrh) == NULL ) {
 		fprintf(stderr,"invalid host: %s\n", host);
 		exit(1);
@@ -96,91 +116,112 @@ char	*argv[];
 		fprintf(stderr, "socket creation failed\n");
 		exit(1);
 	}
-
+	int optval = 1;
 	/* Connect the socket to the specified server. */
 
 	if (connect(sd, (struct sockaddr *)&sad, sizeof(sad)) < 0) {
 		fprintf(stderr,"connect failed\n");
 		exit(1);
 	}
+	setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);  // BE ABLE TO REUSE ADDRESS
+	setsockopt(sd, SOL_SOCKET, SO_SNDBUF, &buffSize, sizeof(buffSize)); // SET THE SEND SIZE OF THE BUFFER
+	setsockopt(sd, SOL_SOCKET, SO_RCVBUF, &buffSize, sizeof(buffSize)); // SET THE RECEIVE SIZE OF THE BUFFER
 
-	int buffSize = 1000;
-	char *sendBuf[buffSize];
 
 	//reads a file and puts it into a string//
 	char *fileContents;
-	long inputFileSize;
+	int inputFileSize;
 	FILE *inputFile = fopen("server.c", "rb");
+	FILE *outputFile = fopen("output.txt","w");
+	if(outputFile == NULL)
+	{
+		outputFile = fopen("output.txt","a"); // IF THE FILE DOESN'T EXIST
+	}
+	else
+	{
+		fprintf(outputFile, ""); 
+	}
+	outputFile = fopen("output.txt","a");
 	fseek(inputFile, 0, SEEK_END);
-	inputFileSize = ftell(inputFile);
+	inputFileSize = ftell(inputFile); // CHECK THE SIZE OF THE FILE
 	rewind(inputFile);
 	
 	fileContents = malloc((inputFileSize + 1) * (sizeof(char)));
 	fread(fileContents, sizeof(char), inputFileSize, inputFile);
 	fclose(inputFile);
 	fileContents[inputFileSize] = 0;
-	//printf("%s\n",fileContents);
 
-	//starts sending packets///
-	// int packNum = pktSize(inputFileSize,buffSize);
-	// printf("TOTAL PACKETS: %i", packNum);
-	// for(int i = 0; i < packNum; i++)
-	// {
-	// 	printf("\nPACKET: %i\n", i + 1);
-	// 	memcpy(sendBuf,&fileContents[i*buffSize],buffSize);
-	// 	send(sd,sendBuf,strlen(sendBuf),0);
-	// 	//printf("%s\n", sendBuf);
-	// }
 	int sentBytes = 0;
+	int receivedBytes = 0;
 	int sizeOfMessage = buffSize;
-	while(sentBytes < inputFileSize)
+	char *readBuff = malloc((inputFileSize + 1) * (sizeof(char)));
+	printf("THE SIZE OF THE FILE: %i\n", inputFileSize);
+	while (receivedBytes < inputFileSize)
 	{
-		int wrote;
-		if(inputFileSize - sentBytes < buffSize)
-		{
-			sizeOfMessage = inputFileSize - sentBytes;
-		}
-		wrote = send(sd,fileContents + sentBytes,(sizeOfMessage),0);
-		sentBytes = wrote + sentBytes;
-		printf("NUMBER OF BYTES SENT %i\n",sentBytes);
+	    fd_set readSock; //creates a list of sockets to check if ready to read
+	    FD_ZERO(&readSock);
+	    FD_SET(sd, &readSock);
+
+	    fd_set writeSock; // creates a list of sockets to check if ready to wrtie
+	    FD_ZERO(&writeSock);
+	    FD_SET(sd, &writeSock);
+
+	    struct timeval tv;
+	    tv.tv_sec = 0;
+	    tv.tv_usec = 0;
+
+	    int sent = 0;
+		int receive = 0;
+	    if (select(sd+1, &readSock, &writeSock, NULL, &tv) > 0) //check if we can read or write
+	    {
+	    	if(FD_ISSET(sd, &readSock))// CHECKS TO SEE IF WE CAN READ
+	    	{
+	    		receive = recv(sd, readBuff, sizeof(readBuff), 0);
+	        	receivedBytes = receive + receivedBytes;
+	        	printf("BYTES SENT: %i\n", sentBytes);
+	    		printf("BYTES RECEIVED: %i\n", receivedBytes );
+	    		fprintf(outputFile, "%s", readBuff);
+
+	    	}
+	    	if(FD_ISSET(sd, &writeSock))// CHECKS TO SEE IF WE CAN WRITE
+	    	{
+			    if(inputFileSize - sentBytes < buffSize)
+				{
+					sizeOfMessage = inputFileSize - sentBytes;
+				}
+				if(sentBytes < inputFileSize)
+				{
+					sent = send(sd,fileContents + sentBytes,(sizeOfMessage),0);
+					sentBytes = sent + sentBytes;
+		        	printf("BYTES SENT: %i\n", sentBytes);
+		    		printf("BYTES RECEIVED: %i\n", receivedBytes);
+				}
+				if(sentBytes >= inputFileSize)
+	    		{
+	    			shutdown(sd, 1);
+	    		} 
+	    	}
+	    }
+
 	}
-	//int sentbits = send(sd,fileContents,buffSize,0);
-	printf("SIZE OF FILE %i \n", inputFileSize);
-
-
-
-
-
-	/* Repeatedly read data from socket and write to user's screen. */
-
-	n = recv(sd, buf, sizeof(buf), 0);
-	while (n > 0) {
-		write(1,"Client says: ", 13);
-		write(1,buf,n);
-		n = recv(sd, buf, sizeof(buf), 0);
+	fclose(outputFile);
+	outputFile = fopen("output.txt","r");
+	char c;
+	if (outputFile) 
+	{
+	    while ((c = getc(outputFile)) != EOF) // WRITES FILE FOR DEBUGGING
+	        putchar(c);
+	    fclose(outputFile);
 	}
+
 
 	/* Close the socket. */
 
-	closesocket(sd);
+	close(sd);
 
 	/* Terminate the client program gracefully. */
 
 	exit(0);
-}
-int pktSize(int fileSize, int buffSize)
-{
-	printf("%i\n", fileSize);
-	printf("%i\n", buffSize);
-
-	if(fileSize % buffSize == 0)
-	{
-		return fileSize/buffSize;
-	}
-	else
-	{
-		return (fileSize/buffSize) + 1;
-	}
 }
 
 
